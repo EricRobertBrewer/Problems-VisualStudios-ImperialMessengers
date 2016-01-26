@@ -12,26 +12,37 @@ sent by Visual Concepts studios, 2012
 
 using namespace std;
 
-#define DEBUG false
+int getAnswer(string fileName);
+bool hasDiscoveredUnvisitedCity(int distance[], bool visited[], int size);
+int getClosestDiscoveredUnvisitedCity(int distance[], bool visited[], int size);
+int getFarthestCity(int distance[], int size);
+
+int main(int argc, char* argv[]) {
+
+    cout << getAnswer("wikipedia.in") << endl;
+    cout << getAnswer("sample.in") << endl;
+
+    return 0;
+}
 
 static const int CAPITAL = 0;
 static const int NEIGHBOR_UNREACHABLE = -1;
 static const int DISTANCE_UNDISCOVERED = -2;
 
-int main(int argc, char* argv[]) {
-
+int getAnswer(string fileName) {
     ifstream fin;
-    fin.open("wikipedia.in");
+    fin.open(fileName.c_str());
     if (fin.fail()) {
-        cout << "File open error. Couldn\'t open file " << argv[1] << "." << endl;
-        exit(1);
+        cout << "File open error. Couldn\'t open file " << fileName << "." << endl;
+        fin.close();
+        return -1;
     }
 
     int cities;
     fin >> cities;
 
-    int distanceFromNeighbor[cities][cities];
-    distanceFromNeighbor[0][0] = NEIGHBOR_UNREACHABLE;
+    int distanceBetweenNeighbors[cities][cities];
+    distanceBetweenNeighbors[0][0] = NEIGHBOR_UNREACHABLE;
     for (int i = 1; i < cities; i++) {
         for (int j = 0; j < i; j++) {
             string s;
@@ -39,14 +50,15 @@ int main(int argc, char* argv[]) {
             stringstream ss;
             ss << s;
             if (s.compare("x") == 0) {
-                distanceFromNeighbor[i][j] = NEIGHBOR_UNREACHABLE;
+                distanceBetweenNeighbors[i][j] = NEIGHBOR_UNREACHABLE;
             } else {
-                ss >> distanceFromNeighbor[i][j];
+                ss >> distanceBetweenNeighbors[i][j];
             }
-            distanceFromNeighbor[j][i] = distanceFromNeighbor[i][j];
+            distanceBetweenNeighbors[j][i] = distanceBetweenNeighbors[i][j];
         }
-        distanceFromNeighbor[i][i] = NEIGHBOR_UNREACHABLE;
+        distanceBetweenNeighbors[i][i] = NEIGHBOR_UNREACHABLE;
     }
+    fin.close();
 
     bool visited[cities];
     for (int i = 0; i < cities; i++) {
@@ -54,43 +66,66 @@ int main(int argc, char* argv[]) {
     }
 
     int distanceFromCapital[cities];
-    distanceFromCapital[CAPITAL] = 0;
+    distanceFromCapital[CAPITAL] = 0; // discovered
     for (int i = 1; i < cities; i++) {
         distanceFromCapital[i] = DISTANCE_UNDISCOVERED;
     }
 
-    if (DEBUG) {
-        for (int i = 0; i < cities; i++) {
-            for (int j = 0; j < cities; j++) {
-                cout << distanceFromNeighbor[i][j] << " ";
-            }
-            cout << endl;
-        }
-    }
-
     // Here we go
-    for (int pivot = 0; pivot < cities; pivot++) {
-        if (!visited[pivot]) {
-            for (int currentNeighbor = 1; currentNeighbor < cities; currentNeighbor++) {
-                if (distanceFromNeighbor[pivot][currentNeighbor] != NEIGHBOR_UNREACHABLE) {
-                    if (distanceFromCapital[currentNeighbor] == DISTANCE_UNDISCOVERED) {
-                        distanceFromCapital[currentNeighbor] = distanceFromNeighbor[pivot][currentNeighbor] + distanceFromCapital[pivot];
-                    } else if (distanceFromCapital[pivot] + distanceFromNeighbor[pivot][currentNeighbor] < distanceFromCapital[currentNeighbor]) {
-                        distanceFromCapital[currentNeighbor] = distanceFromNeighbor[pivot][currentNeighbor] + distanceFromCapital[pivot];
-                    }
+    while (hasDiscoveredUnvisitedCity(distanceFromCapital, visited, cities)) {
+        int pivot = getClosestDiscoveredUnvisitedCity(distanceFromCapital, visited, cities);
+        for (int currentNeighbor = 1/* skip capital */; currentNeighbor < cities; currentNeighbor++) {
+            if (!visited[currentNeighbor] && distanceBetweenNeighbors[pivot][currentNeighbor] != NEIGHBOR_UNREACHABLE) {
+                if (distanceFromCapital[currentNeighbor] == DISTANCE_UNDISCOVERED) {
+                    distanceFromCapital[currentNeighbor] = distanceBetweenNeighbors[pivot][currentNeighbor] + distanceFromCapital[pivot];
+                } else if (distanceFromCapital[pivot] + distanceBetweenNeighbors[pivot][currentNeighbor] < distanceFromCapital[currentNeighbor]) {
+                    distanceFromCapital[currentNeighbor] = distanceBetweenNeighbors[pivot][currentNeighbor] + distanceFromCapital[pivot];
                 }
             }
-            visited[pivot] = true;
         }
+        visited[pivot] = true;
     }
 
-    int greatest = distanceFromCapital[1];
-    for (int i = 2; i < cities; i++) {
-        if (distanceFromCapital[i] > greatest) {
-            greatest = distanceFromCapital[i];
+    int farthest = getFarthestCity(distanceFromCapital, cities);
+    return distanceFromCapital[farthest];
+}
+
+/*
+ * Returns true if an undiscovered, unvisited city exits; otherwise, false.
+ */
+bool hasDiscoveredUnvisitedCity(int distance[], bool visited[], int size) {
+    for (int i = 0; i < size; i++) {
+        if (!visited[i] && distance[i] != DISTANCE_UNDISCOVERED) {
+            return true;
         }
     }
-    cout << greatest << endl;
+    return false;
+}
 
-    return 0;
+/*
+ * Returns the index of closest current city.
+ */
+int getClosestDiscoveredUnvisitedCity(int distance[], bool visited[], int size) {
+    int closest = -1;
+    for (int i = 0; i < size; i++) {
+        if (!visited[i] && distance[i] != DISTANCE_UNDISCOVERED) {
+            if (closest == -1 || distance[i] < distance[closest]) {
+                closest = i;
+            }
+        }
+    }
+    return closest;
+}
+
+/*
+ * Returns the index of the farthest city.
+ */
+int getFarthestCity(int distance[], int size) {
+    int farthest = 1;
+    for (int i = 2; i < size; i++) {
+        if (distance[i] > distance[farthest]) {
+            farthest = i;
+        }
+    }
+    return farthest;
 }
